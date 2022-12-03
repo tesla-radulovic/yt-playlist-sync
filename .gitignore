@@ -1,2 +1,14 @@
-/node_modules/*
-/target/*
+/classes/
+/lib/
+/dev/
+*.mp3
+/node_modules/
+/target/
+/library/*
+*.jar
+.lein-deps-sum
+.lein-repl-history
+.lein-plugins/
+.nrepl-port
+figwheel_server.log
+pom.xml
