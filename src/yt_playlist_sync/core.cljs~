@@ -1,0 +1,129 @@
+(ns yt-playlist-sync.core
+  (:require [cljs.nodejs :as nodejs]
+            [cljs.core.async :refer [go]]
+            [cljs.core.async.interop :refer-macros [<p!]]
+            [clojure.string :as str]
+            ))
+
+(nodejs/enable-util-print!)
+
+(defonce fs (nodejs/require "fs"))
+
+(defonce util (nodejs/require "util"))
+
+(defonce readFilePromise (.promisify util (.-readFile fs)))
+
+(defonce speaker (nodejs/require "speaker"))
+
+(defonce lame (.-Lame (nodejs/require "node-lame")))
+
+#_(defonce load-audio-promise (.promisify util load))
+
+(defonce ytdl (nodejs/require "ytdl-core"))
+
+(defonce ytpl (nodejs/require "ytpl"))
+
+(defonce uuidv4 (nodejs/require "uuid"))
+
+(defonce readline (nodejs/require "readline"))
+
+(defonce rl (.createInterface readline js/process.stdin js/process.stdout))
+
+(defonce readable-from (-> "stream"
+                           (nodejs/require)
+                           (.-Readable)
+                           (.-from)))
+
+(defn uuidjs [] (.v4 uuidv4))
+
+(def library
+  (go
+    (try
+      (-> js/JSON
+          (.parse
+           (-> "library/library.json"
+               (readFilePromise "utf8")
+               (<p!)))
+          (js->clj :keywordize-keys true))
+      (catch js/Object e
+        (do
+          (.writeFile fs "library/library.json" "{}" #(println %) )
+          {})))))
+
+(def spaker (speaker. #js { "channels" 2 "bitDepth" 16 "sampleRate" 48000 }))
+
+(let
+      [decoder
+       (-> #js {"output" "buffer" "resample" 48}
+           (lame.)
+           (.setFile "library/Bosanska Artiljerija.mp3"))]
+    (-> decoder
+        (.decode)
+        (.then #(-> decoder
+                    (.getBuffer)
+                    (readable-from)
+                    #_(.on "data" (fn [chunk] (.write spaker chunk)))
+                    (.pipe spaker)))
+        (.catch #(println "err:" %))))
+    
+
+(defn -main []
+
+  #_(let
+      [decoder
+       (-> #js {"output" "buffer"}
+           (lame.)
+           (.setFile "library/0x10c Soundtrack by C418.mp3"))]
+    (-> decoder
+        (.decode)
+        (.then #(-> decoder
+                    (.getBuffer)
+                    
+                    (.pipe spaker)))
+        (.catch #(println "err:" %))))
+    
+
+    
+  #_(.play player "library/0x10c Soundtrack by C418.mp3" #(println "player err" %))
+  #_(.play player "library/Bosanska Artiljerija.mp3" #(println "player err" %))
+  
+  (println "Hello world!")
+
+  #_(-> "http://www.youtube.com/watch?v=aqz-KE-bpKQ"
+      (ytdl)
+      (.pipe (.createWriteStream fs "video.mp4")))
+  (.writeFile fs "test.txt" "test" #(println %)  ))
+
+(go (println (<! library)))
+
+(defn tramp [string]
+  (let
+      [args (str/split string #" ")]
+    (do
+      (case (first args)
+        "library-add-playlist" (go
+                                 (let [urls (map (fn [e] {:uuid (uuidjs) :source (.-shortUrl e) :title (.-title e)} )
+                                                 (-> (second args)
+                                                     (ytpl)
+                                                     (<p!)
+                                                     (.-items)))]
+                                   (-> ( (first urls) :source )
+                                       (ytdl #js {"filter" "audioonly"})
+                                       (.pipe (.createWriteStream fs (str "library/" ((first urls) :uuid) ".mp3")  )))
+                                       
+                                   ))
+        "pause" (.cork spaker)
+        "resume" (.uncork spaker)
+        "not a valid input"
+        )
+      (.question rl "hmm" tramp))))
+
+(.question rl "hmm" tramp)
+
+;;"PLt_D2S1_wYNc4coK5y4Nsg4ubwe8cgsnr"
+
+;;( {:key {:title "Baka Mitai" :artist "idk" :album "Yakuza OST"}
+;;    :metadata {:rating 200 :allusions ["dunno"] :sources ["yt" "soundcloud"] :covers [covers here]  }}   )
+
+(set! *main-cli-fn* -main)
+

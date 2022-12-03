@@ -1,0 +1,1 @@
+{:main yt-playlist-sync.core, :asset-path "target/js/compiled/dev", :output-to "target/js/compiled/yt_playlist_sync.js", :output-dir "target/js/compiled/dev", :target :nodejs, :optimizations :none, :source-map-timestamp true}
